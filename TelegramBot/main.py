@@ -2,11 +2,17 @@ import requests
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram import Location
 from time import sleep
+import time
+import argparse
+from pmw3901 import PMW3901, BG_CS_FRONT_BCM, BG_CS_BACK_BCM
+
 
 TOKEN = '966238705:AAHkaDLxGiJJAEstjgsgjMWrMEGJxGGudAk'
 
 LUIS_KEY = 'ad5e38b352f8403aa811cc5faaeea113'
 ENDPOINT = 'https://westeurope.api.cognitive.microsoft.com/luis/v2.0/apps/bc56f4a2-d7b7-460d-9e99-f73d1ab24889?verbose=true&timezoneOffset=0&q='
+
+stop = False
 
 is_cleaning = False
 
@@ -29,11 +35,12 @@ def set_alarm(update, context):
 
 def start_dog(update, context):
     context.bot.send_message(chat_id=update.message.chat_id, text='You got it, I\'ll play with the dog when I see him')
-
+    stop = False
+    listen_motion(update, context)
 
 def stop_dog(update, context):
     context.bot.send_message(chat_id=update.message.chat_id, text='As you wish, I\'ll leave your dog for now')
-
+    stop = True
 
 def start_work(update, context):
     global is_cleaning
@@ -61,8 +68,8 @@ def temp(update, context):
 
 
 def joke(update, context):
-    pass
-
+    context.bot.send_message(chat_id=update.message.chat_id, text="why was 6 afraid of 7?")
+    context.bot.send_message(chat_id=update.message.chat_id, text="Because 7 8 9!")
 
 # Parse the message and call the right command handler
 def handle_text_message(update, context):
@@ -126,6 +133,57 @@ def get_intent(message):
     except Exception:
         print("in exception")
         return None
+
+
+def listen_motion(update, context):
+    # put code here
+    print("motion")
+    
+	
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--rotation', type=int,
+                    default=0, choices=[0, 90, 180, 270],
+                    help='Rotation of sensor in degrees.')
+    parser.add_argument('--spi-slot', type=str,
+                    default='front', choices=['front', 'back'],
+                    help='Breakout Garden SPI slot.')
+
+    args = parser.parse_args()
+
+    flo = PMW3901(spi_port=0, spi_cs=1, spi_cs_gpio=BG_CS_FRONT_BCM if args.spi_slot == 'front' else BG_CS_BACK_BCM)
+    flo.set_rotation(args.rotation)
+
+    tx = 0
+    ty = 0
+    s = False
+    try:
+        while not s:
+            try:
+                x, y = flo.get_motion()
+            except RuntimeError:
+                continue
+            tx += x
+            ty += y
+            print("Relative: x {:03d} y {:03d} | Absolute: x {:03d} y {:03d}".format(x, y, tx, ty))
+            if(x > 8):
+                print("motion6")
+                context.bot.send_message(chat_id=update.message.chat_id, text="Found dog!")
+                s = True
+            time.sleep(0.01)
+    except KeyboardInterrupt:
+        pass
+
+
+
+
+	    
+
+
+
+
+
+
 
 
 def main():
